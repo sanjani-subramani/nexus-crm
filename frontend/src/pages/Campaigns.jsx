@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { getCampaigns } from '../api'
+import { getCampaigns, createCampaign } from '../api'
+import Toast from '../components/Toast'
 
 // ── Style maps ────────────────────────────────────────────────────────────────
 const PRIORITY_STYLE = {
@@ -85,13 +86,26 @@ function CampaignRow({ campaign }) {
 }
 
 // ── Add Campaign Modal ────────────────────────────────────────────────────────
-function AddCampaignModal({ onClose }) {
-  const [form, setForm] = useState({ name: '', category: '', priority: 'Medium' })
+function AddCampaignModal({ onClose, onSave }) {
+  const [form, setForm]       = useState({ name: '', category: '', priority: 'Medium' })
+  const [saving, setSaving]   = useState(false)
 
   const set = (key, value) => setForm(prev => ({ ...prev, [key]: value }))
 
-  // Close on backdrop click
   const onBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
+
+  const handleSave = async () => {
+    if (!form.name.trim() || saving) return
+    setSaving(true)
+    try {
+      await onSave(form)
+      onClose()
+    } catch {
+      // error toast shown by parent; stay open
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div
@@ -188,10 +202,16 @@ function AddCampaignModal({ onClose }) {
             Cancel
           </button>
           <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-semibold text-white bg-accent hover:bg-accent/90 rounded-lg transition-colors shadow-lg shadow-accent/20"
+            onClick={handleSave}
+            disabled={!form.name.trim() || saving}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-accent hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors shadow-lg shadow-accent/20"
           >
-            Save Campaign
+            {saving && (
+              <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+            )}
+            {saving ? 'Saving…' : 'Save Campaign'}
           </button>
         </div>
       </div>
@@ -205,6 +225,22 @@ export default function Campaigns() {
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState(null)
   const [showModal, setShowModal] = useState(false)
+  const [toast, setToast]         = useState(null)
+
+  const handleSaveCampaign = async (form) => {
+    try {
+      const campaign = await createCampaign({
+        name:     form.name.trim(),
+        category: form.category.trim() || undefined,
+        priority: form.priority,
+      })
+      setCampaigns(prev => [...prev, campaign])
+      setToast({ type: 'success', message: `Campaign "${campaign.name}" created` })
+    } catch (err) {
+      setToast({ type: 'error', message: err?.response?.data?.detail ?? 'Failed to create campaign' })
+      throw err
+    }
+  }
 
   useEffect(() => {
     getCampaigns()
@@ -304,7 +340,8 @@ export default function Campaigns() {
       </div>
 
       {/* Modal rendered outside table to avoid stacking context issues */}
-      {showModal && <AddCampaignModal onClose={() => setShowModal(false)} />}
+      {showModal && <AddCampaignModal onClose={() => setShowModal(false)} onSave={handleSaveCampaign} />}
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </>
   )
 }

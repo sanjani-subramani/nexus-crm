@@ -97,3 +97,47 @@ class DashboardStatsSchema(BaseModel):
     total_agents: int
     online_agents: int
     total_campaigns: int
+
+
+# ── Action Request Schemas ─────────────────────────────────────────────────────
+
+class CreateDispositionRequest(BaseModel):
+    """POST /api/dispositions — log a call outcome and trigger lifecycle transitions."""
+    lead_id: int
+    agent_id: Optional[int] = None
+    call_connected: bool
+    outcome: Optional[str] = None          # converted | in_progress | lost
+    temperature: Optional[str] = None       # hot | warm | cold
+    product: Optional[str] = None
+    reason: Optional[str] = None           # e.g. "phone_switched_off"
+    notes: Optional[str] = None
+    call_duration: Optional[int] = None    # seconds; None treated as 0
+    next_followup_date: Optional[datetime] = None
+
+
+class AllocateLeadRequest(BaseModel):
+    """PATCH /api/leads/{id}/allocate — assign a lead to an agent."""
+    agent_id: int
+
+
+class MoveLeadRequest(BaseModel):
+    """PATCH /api/leads/{id}/move — reassign or unallocate a lead."""
+    agent_id: Optional[int] = None   # required when target == 'another_user'
+    target: str                      # 'another_user' | 'unallocated'
+
+
+class CreateCampaignRequest(BaseModel):
+    """POST /api/campaigns — create a new campaign."""
+    name: str
+    category: Optional[str] = None
+    priority: str = "Medium"
+
+
+class UpdateLeadRequest(BaseModel):
+    """PATCH /api/leads/{id} — partial update of a lead's editable fields."""
+    customer_name: Optional[str] = None
+    contact_number: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    temperature: Optional[str] = None
+    product: Optional[str] = None

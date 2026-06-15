@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from routers.actions import router as actions_router
 from routers.data import router as data_router
 
 app = FastAPI(title="Nexus CRM API")
@@ -14,6 +15,7 @@ app.add_middleware(
 )
 
 app.include_router(data_router)
+app.include_router(actions_router)
 
 
 @app.get("/")

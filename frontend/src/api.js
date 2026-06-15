@@ -23,4 +23,21 @@ export const getLead = (id) =>
 export const getDispositions = (leadId) =>
   api.get('/api/dispositions', { params: { lead_id: leadId } }).then(r => r.data)
 
+// ── Write endpoints ───────────────────────────────────────────────────────────
+
+export const createDisposition = (data) =>
+  api.post('/api/dispositions', data).then(r => r.data)
+
+export const allocateLead = (leadId, agentId) =>
+  api.patch(`/api/leads/${leadId}/allocate`, { agent_id: agentId }).then(r => r.data)
+
+export const moveLead = (leadId, agentId, target) =>
+  api.patch(`/api/leads/${leadId}/move`, { agent_id: agentId, target }).then(r => r.data)
+
+export const createCampaign = (data) =>
+  api.post('/api/campaigns', data).then(r => r.data)
+
+export const updateLead = (leadId, data) =>
+  api.patch(`/api/leads/${leadId}`, data).then(r => r.data)
+
 export default api

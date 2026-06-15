@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { getLeads, getCampaigns } from '../api'
+import { getLeads, getCampaigns, getAgents, allocateLead } from '../api'
+import Toast from '../components/Toast'
 
 // ── Badge / pill style maps ───────────────────────────────────────────────────
 const STATUS_STYLE = {
@@ -76,9 +77,26 @@ function TableSkeleton() {
 }
 
 // Lead table row
-function LeadRow({ lead }) {
+function LeadRow({ lead, agents = [], onAllocate }) {
+  const [open, setOpen]           = useState(false)
+  const [agentId, setAgentId]     = useState('')
+  const [allocating, setAllocating] = useState(false)
+
+  const handleAllocate = async () => {
+    if (!agentId || allocating) return
+    setAllocating(true)
+    try {
+      await onAllocate(lead.id, Number(agentId))
+      setOpen(false)
+    } catch {
+      // error toast shown by parent; stay open
+    } finally {
+      setAllocating(false)
+    }
+  }
+
   return (
-    <tr className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-colors cursor-pointer">
+    <tr className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-colors">
       <td className="px-4 py-3.5">
         <p className="text-ink font-medium text-sm">{lead.customer_name}</p>
         {lead.zone && <p className="text-muted text-xs mt-0.5">{lead.zone}</p>}
@@ -101,6 +119,55 @@ function LeadRow({ lead }) {
       <td className="px-4 py-3.5 text-sm text-muted">
         {lead.agent_name || <span className="text-white/20">Unassigned</span>}
       </td>
+
+      {/* Allocate action — only visible for unallocated leads */}
+      <td className="px-4 py-3.5">
+        {lead.status === 'unallocated' && (
+          open ? (
+            <div className="flex items-center gap-1.5">
+              <div className="relative">
+                <select
+                  value={agentId}
+                  onChange={e => setAgentId(e.target.value)}
+                  className="appearance-none text-xs bg-surface border border-white/8 text-ink rounded-lg pl-2 pr-6 py-1.5 focus:outline-none focus:border-accent/40 transition-colors"
+                >
+                  <option value="">Agent…</option>
+                  {agents.map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-1.5 flex items-center text-muted">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </div>
+              </div>
+              <button
+                onClick={handleAllocate}
+                disabled={!agentId || allocating}
+                className="text-xs px-2 py-1.5 bg-accent text-white rounded-lg font-semibold hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {allocating ? '…' : 'Go'}
+              </button>
+              <button
+                onClick={() => setOpen(false)}
+                className="text-muted hover:text-ink transition-colors p-0.5"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setOpen(true)}
+              className="text-xs px-2.5 py-1 bg-accent/10 text-accent hover:bg-accent/20 rounded-lg font-medium transition-colors border border-accent/20"
+            >
+              Assign
+            </button>
+          )
+        )}
+      </td>
     </tr>
   )
 }
@@ -110,19 +177,33 @@ export default function Leads() {
   const [leads, setLeads]               = useState([])
   const [filteredLeads, setFilteredLeads] = useState([])
   const [campaigns, setCampaigns]       = useState([])
+  const [agents, setAgents]             = useState([])
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState(null)
   const [search, setSearch]             = useState('')
+  const [toast, setToast]               = useState(null)
   const [filters, setFilters]           = useState({
     status: '',
     campaign_id: '',
     temperature: '',
   })
 
-  // Fetch campaigns once for the dropdown
+  // Fetch campaigns + agents once for dropdowns
   useEffect(() => {
     getCampaigns().then(setCampaigns).catch(() => {})
+    getAgents().then(setAgents).catch(() => {})
   }, [])
+
+  const handleAllocate = async (leadId, agentId) => {
+    try {
+      const updated = await allocateLead(leadId, agentId)
+      setLeads(prev => prev.map(l => l.id === leadId ? updated : l))
+      setToast({ type: 'success', message: 'Lead allocated successfully' })
+    } catch (err) {
+      setToast({ type: 'error', message: err?.response?.data?.detail ?? 'Failed to allocate lead' })
+      throw err
+    }
+  }
 
   // Re-fetch leads from the API whenever any dropdown filter changes
   useEffect(() => {
@@ -248,10 +329,10 @@ export default function Leads() {
 
       {/* Table */}
       <div className="bg-surface-raised rounded-xl border border-white/8 overflow-hidden">
-        <table className="w-full text-sm min-w-[720px]">
+        <table className="w-full text-sm min-w-215">
           <thead>
             <tr className="border-b border-white/8 bg-white/5">
-              {['Customer Name', 'Contact No.', 'Campaign', 'Product', 'Status', 'Temperature', 'Agent'].map(col => (
+              {['Customer Name', 'Contact No.', 'Campaign', 'Product', 'Status', 'Temperature', 'Agent', 'Action'].map(col => (
                 <th
                   key={col}
                   className="text-left text-[11px] font-semibold text-muted uppercase tracking-wider px-4 py-3"
@@ -284,12 +365,13 @@ export default function Leads() {
           ) : (
             <tbody>
               {filteredLeads.map(lead => (
-                <LeadRow key={lead.id} lead={lead} />
+                <LeadRow key={lead.id} lead={lead} agents={agents} onAllocate={handleAllocate} />
               ))}
             </tbody>
           )}
         </table>
       </div>
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   )
 }
