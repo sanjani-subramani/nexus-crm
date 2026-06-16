@@ -62,7 +62,7 @@ export default function Sidebar() {
             <span className="text-white font-bold text-base">N</span>
           </div>
           <div>
-            <p className="text-ink font-semibold text-sm leading-tight">Nexus CRM</p>
+            <p className="text-ink font-semibold text-sm leading-tight">Chit Fund CRM</p>
             <p className="text-muted text-xs mt-0.5">Command Center</p>
           </div>
         </div>
